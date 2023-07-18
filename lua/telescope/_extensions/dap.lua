@@ -8,13 +8,22 @@ if not has_dap then
   error('This plugins requires mfussenegger/nvim-dap')
 end
 
-local actions      = require'telescope.actions'
-local action_state = require'telescope.actions.state'
-local builtin      = require'telescope.builtin'
-local finders      = require'telescope.finders'
-local pickers      = require'telescope.pickers'
-local previewers   = require'telescope.previewers'
-local conf = require('telescope.config').values
+local actions      = require 'telescope.actions'
+local action_state = require 'telescope.actions.state'
+local builtin      = require 'telescope.builtin'
+local finders      = require 'telescope.finders'
+local pickers      = require 'telescope.pickers'
+local previewers   = require 'telescope.previewers'
+local conf         = require('telescope.config').values
+
+local ext_config   = {
+  dap_ui = {},
+  commands = {},
+  configurations = {},
+  list_breakpoints = {},
+  variables = {},
+  frames = {},
+}
 
 local function get_url_buf(url)
   local buf = -1
@@ -31,7 +40,7 @@ local function get_url_buf(url)
 end
 
 local commands = function(opts)
-  opts = opts or {}
+  opts = vim.tbl_deep_extend('force', ext_config.commands, opts or {})
 
   local results = {}
   for k, v in pairs(dap) do
@@ -41,11 +50,11 @@ local commands = function(opts)
   end
 
   pickers.new(opts, {
-    prompt_title = 'Dap Commands',
-    finder    = finders.new_table {
+    prompt_title    = 'Dap Commands',
+    finder          = finders.new_table {
       results = results
     },
-    sorter = conf.generic_sorter(opts),
+    sorter          = conf.generic_sorter(opts),
     attach_mappings = function(prompt_bufnr)
       actions.select_default:replace(function()
         local selection = action_state.get_selected_entry()
@@ -60,7 +69,7 @@ local commands = function(opts)
 end
 
 local configurations = function(opts)
-  opts = opts or {}
+  opts = vim.tbl_deep_extend('force', ext_config.configurations, opts or {})
 
   local results = {}
   for _, lang in pairs(dap.configurations) do
@@ -74,8 +83,8 @@ local configurations = function(opts)
   end
 
   pickers.new(opts, {
-    prompt_title = 'Dap Configurations',
-    finder    = finders.new_table {
+    prompt_title    = 'Dap Configurations',
+    finder          = finders.new_table {
       results = results,
       entry_maker = function(entry)
         return {
@@ -89,7 +98,7 @@ local configurations = function(opts)
         }
       end,
     },
-    sorter = conf.generic_sorter(opts),
+    sorter          = conf.generic_sorter(opts),
     attach_mappings = function(prompt_bufnr)
       actions.select_default:replace(function()
         local selection = action_state.get_selected_entry()
@@ -104,12 +113,12 @@ local configurations = function(opts)
 
       return true
     end,
-    previewer = previewers.display_content.new(opts)
+    previewer       = previewers.display_content.new(opts)
   }):find()
 end
 
 local list_breakpoints = function(opts)
-  opts = opts or {}
+  opts = vim.tbl_deep_extend('force', ext_config.list_breakpoints, opts or {})
   opts.prompt_title = 'Dap Breakpoints'
 
   dap.list_breakpoints(false)
@@ -117,7 +126,7 @@ local list_breakpoints = function(opts)
 end
 
 local variables = function(opts)
-  opts = opts or {}
+  opts = vim.tbl_deep_extend('force', ext_config.variables, opts or {})
 
   local frame = dap.session().current_frame
 
@@ -141,7 +150,7 @@ local variables = function(opts)
 
   if require_ok then
     if buf ~= -1 then
-      local lang =  parsers.get_buf_lang(buf)
+      local lang = parsers.get_buf_lang(buf)
       if not parsers.has_parser(lang) or not queries.has_locals(lang) then return end
       local definition_nodes = locals.get_definitions(buf)
       for _, d in pairs(definition_nodes) do
@@ -166,7 +175,7 @@ local variables = function(opts)
 
   pickers.new(opts, {
     prompt_title = 'Dap Variables',
-    finder    = finders.new_table {
+    finder       = finders.new_table {
       results = results,
       entry_maker = function(entry)
         return {
@@ -179,15 +188,15 @@ local variables = function(opts)
         }
       end
     },
-    sorter = conf.generic_sorter(opts),
-    previewer = conf.grep_previewer(opts),
+    sorter       = conf.generic_sorter(opts),
+    previewer    = conf.grep_previewer(opts),
   }):find()
 end
 
 
 local frames = function(opts)
-  opts = opts or {}
-  local session = require'dap'.session()
+  opts = vim.tbl_deep_extend('force', ext_config.frames, opts or {})
+  local session = require 'dap'.session()
 
   if not session or not session.stopped_thread_id then
     print('Cannot move frame if not stopped')
@@ -196,15 +205,15 @@ local frames = function(opts)
   local frames = session.threads[session.stopped_thread_id].frames
 
   pickers.new(opts, {
-    prompt_title = 'Jump to frame',
-    finder    = finders.new_table {
+    prompt_title    = 'Jump to frame',
+    finder          = finders.new_table {
       results = frames,
       entry_maker = function(frame)
         return {
           value = frame,
-          display = function ()
+          display = function()
             if frame.presentationHint == 'subtle' or not frame.source then
-              return frame.name, { { {0, #frame.name}, 'NvimDapSubtleFrame' } }
+              return frame.name, { { { 0, #frame.name }, 'NvimDapSubtleFrame' } }
             end
             return frame.name
           end,
@@ -215,7 +224,7 @@ local frames = function(opts)
         }
       end,
     },
-    sorter = conf.generic_sorter(opts),
+    sorter          = conf.generic_sorter(opts),
     attach_mappings = function(prompt_bufnr)
       actions.select_default:replace(function()
         local selection = action_state.get_selected_entry()
@@ -226,19 +235,22 @@ local frames = function(opts)
 
       return true
     end,
-    previewer = conf.grep_previewer(opts),
+    previewer       = conf.grep_previewer(opts),
   }):find()
 end
 
 return telescope.register_extension {
-  setup = function()
+  setup = function(cfg)
     vim.cmd [[ highlight default link NvimDapSubtleFrame Comment ]]
 
+    ext_config = vim.tbl_deep_extend('force', ext_config, cfg or {})
+
     require('dap.ui').pick_one = function(items, prompt, label_fn, cb)
-      local opts = {}
+      local opts = ext_config.dap_ui
+      table.sort(items, function(a, b) return label_fn(a) < label_fn(b) end)
       pickers.new(opts, {
-        prompt_title = prompt,
-        finder    = finders.new_table {
+        prompt_title    = prompt,
+        finder          = finders.new_table {
           results = items,
           entry_maker = function(entry)
             return {
@@ -248,7 +260,7 @@ return telescope.register_extension {
             }
           end,
         },
-        sorter = conf.generic_sorter(opts),
+        sorter          = conf.generic_sorter(opts),
         attach_mappings = function(prompt_bufnr)
           actions.select_default:replace(function()
             local selection = action_state.get_selected_entry()

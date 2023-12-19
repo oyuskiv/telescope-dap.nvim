@@ -72,9 +72,11 @@ local configurations = function(opts)
   opts = vim.tbl_deep_extend('force', ext_config.configurations, opts or {})
 
   local results = {}
-  for _, lang in pairs(dap.configurations) do
-    for _, config in ipairs(lang) do
-      table.insert(results, config)
+  for lang, configs in pairs(dap.configurations) do
+    if opts.language_filter == nil or opts.language_filter(lang) then
+      for _, config in ipairs(configs) do
+        table.insert(results, config)
+      end
     end
   end
 
